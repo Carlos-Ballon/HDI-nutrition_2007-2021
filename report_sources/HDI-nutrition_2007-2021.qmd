@@ -1,0 +1,650 @@
+---
+title: "HDI and Maternal-Child Nutrition Indicators in South America (2007–2021): An Ecological Study"
+author: "Carlos Ballon-Salcedo"
+date: "`r Sys.Date()`"
+format: docx
+editor: source
+message: false
+warning: false
+---
+
+# Load packages
+
+```{r}
+# Packages
+pacman::p_load(
+  rio,
+  here,
+  tidyverse,
+  ggpubr,
+  ggsci,
+  gtsummary,
+  flextable,
+  officer,
+  lmtest,
+  sandwich,
+  clubSandwich,
+  modelsummary,
+  extrafont,
+  labelled,
+  janitor,
+  epiDisplay,
+  Hmisc
+)
+
+# Scripts
+source(here::here("scripts", "plot_zscore_vs_hdi.R"))
+```
+
+# Import data
+
+```{r}
+# Prevalence rates
+data_prevalencias <- import(here("data", "base_ecologico.dta")) |>
+  dplyr::select(CountryName, SeriesName, year, value) |>
+  pivot_wider(
+    names_from = "SeriesName",
+    values_from = "value") |>
+  rename(
+    anemia659 = `Prevalence of anemia among children (% of children ages 6-59 months)`,
+    anemiagest = `Prevalence of anemia among pregnant women (%)`,
+    anemiafertil = `Prevalence of anemia among non-pregnant women (% of women ages 15-49)`,
+    bajopesoalnacer = `Low-birthweight babies (% of births)`,
+    sobrepesoinfantil = `Prevalence of overweight (modeled estimate, % of children under 5)`,
+    retrasocrectallaedad = `Prevalence of stunting, height for age (modeled estimate, % of children under 5)`,
+    fechas = year,
+    pais = CountryName) |>
+  mutate(pais = recode(pais, "Venezuela, RB" = "Venezuela"))
+
+# HDI
+data_idh <- import(here("data", "baselat.xlsx")) |>
+  rename(pais = pais...5) |>
+  dplyr::select(hdi, pais, fechas) |>
+  dplyr::filter(pais %in% c(1, 4, 5, 6, 7, 12, 23, 24, 26, 27)) |>
+  dplyr::mutate(
+    pais = case_when(
+      pais == 1 ~ "Argentina",
+      pais == 4 ~ "Bolivia",
+      pais == 5 ~ "Brazil",
+      pais == 6 ~ "Chile",
+      pais == 7 ~ "Colombia",
+      pais == 12 ~ "Ecuador",
+      pais == 23 ~ "Paraguay",
+      pais == 24 ~ "Peru",
+      pais == 26 ~ "Uruguay",
+      pais == 27 ~ "Venezuela"
+    ))
+
+# Join the data
+data <- data_prevalencias |>
+  left_join(data_idh, by = c("pais", "fechas")) |>
+  filter(fechas >= 2007 & fechas <= 2021)
+```
+
+# Export data
+
+```{r eval=FALSE, include=FALSE}
+write.dta(data, here("data","data_idh.dta"))
+```
+
+# Process data
+
+## Recode and relevel
+
+```{r}
+# Round to 3 digits
+data <- data |>
+  dplyr::mutate(across(where(is.numeric), round, 3))
+
+# Normalization (scaling)
+data <- data |>
+  mutate(
+    z_hdi = scale(hdi)[, 1],
+    z_anemia_child = scale(anemia659)[, 1],
+    z_anemia_gest = scale(anemiagest)[, 1],
+    z_anemia_fertil = scale(anemiafertil)[, 1],
+    z_bpn = scale(bajopesoalnacer)[, 1],
+    z_sobrepeso = scale(sobrepesoinfantil)[, 1],
+    z_tallaedad = scale(retrasocrectallaedad)[, 1]
+  )
+```
+
+# Produce outputs
+
+::: {style="text-align: justify"}
+El uso del paquete `showtext` con `ggplot2` y `ggsave()` resulta problemático principalmente porque modifica la forma en que R interpreta el tamaño de la fuente, lo que a menudo lleva a que el texto se guarde con un tamaño minúsculo en el archivo final, obligándote a escalar el parámetro `size` del texto a valores inusualmente altos (como 24 o 30) para compensar, interrumpiendo el flujo de trabajo estándar de `ggplot2`. Por otro lado, la solución extrafont con el comando `font_import(pattern = "Lato", prompt = FALSE)` es superior, ya que registra la fuente instalada en el sistema de manera selectiva (solo cargando Lato, no todas las fuentes), integrándola al subsistema de gráficos de R de forma más limpia y permitiendo que los valores de `size` de `ggplot2` se comporten de manera predecible. Además, usar `loadfonts(device = "pdf")` y `loadfonts(device = "postscript")` es crucial porque le dice a R que ponga las fuentes registradas a disposición de los dispositivos de salida de archivos vectoriales, y especificar `device = cairo_pdf` en `ggsave()` es importante para garantizar que las fuentes sean correctamente incrustadas en el archivo PDF final, asegurando que el gráfico se vea idéntico independientemente de las fuentes instaladas en la máquina del visor.
+:::
+
+## Figure 1. Trends in maternal and child nutrition indicators
+
+```{r fig.height=8, fig.width=14}
+# Fonts
+font_import(pattern = "Lato", prompt = FALSE)
+font_import(pattern = "Syne", prompt = FALSE)
+
+# Plot
+figure_1 <- ggplot(data, aes(x = fechas)) +
+  geom_line(aes(y = anemia659, color = "Anemia in Children")) +
+  geom_point(
+    aes(
+      y = anemia659,
+      color = "Anemia in Children",
+      fill = "Anemia in Children",
+      shape = "Anemia in Children"
+    ),
+    size = 1.5
+  ) +
+  geom_line(aes(y = anemiagest, color = "Anemia in Pregnancy")) +
+  geom_point(
+    aes(
+      y = anemiagest,
+      color = "Anemia in Pregnancy",
+      fill = "Anemia in Pregnancy",
+      shape = "Anemia in Pregnancy"
+    ),
+    size = 1.5
+  ) +
+  geom_line(aes(y = anemiafertil, color = "Anemia in Women of\nReproductive Age")) +
+  geom_point(
+    aes(
+      y = anemiafertil,
+      color = "Anemia in Women of\nReproductive Age",
+      fill = "Anemia in Women of\nReproductive Age",
+      shape = "Anemia in Women of\nReproductive Age"
+    ),
+    size = 1.5
+  ) +
+  geom_line(aes(y = retrasocrectallaedad, color = "Child stunting")) +
+  geom_point(
+    aes(
+      y = retrasocrectallaedad,
+      color = "Child stunting",
+      fill = "Child stunting",
+      shape = "Child stunting"
+    ),
+    size = 1.5
+  ) +
+  geom_line(aes(y = bajopesoalnacer, color = "Low Birth Weight")) +
+  geom_point(
+    aes(
+      y = bajopesoalnacer,
+      color = "Low Birth Weight",
+      fill = "Low Birth Weight",
+      shape = "Low Birth Weight"
+    ),
+    size = 1.5
+  ) +
+  geom_line(aes(y = sobrepesoinfantil, color = "Overweight in Children")) +
+  geom_point(
+    aes(
+      y = sobrepesoinfantil,
+      color = "Overweight in Children",
+      fill = "Overweight in Children",
+      shape = "Overweight in Children"
+    ),
+    size = 1.5
+  ) +
+  scale_y_continuous(breaks = scales::pretty_breaks()) +
+  scale_x_continuous(breaks = seq(2007, 2021, by = 3)) +
+  scale_shape_manual(values = c(21:25, 4)) +
+  ggsci::scale_color_lancet() +
+  ggsci::scale_fill_lancet() +               
+  labs(
+    y = "Prevalence (%)",
+    color = "Indicador",
+    shape = "Indicador",
+    fill  = "Indicador"
+  ) +
+  theme_pubclean(base_family = "Lato") +
+  facet_wrap(~ pais, nrow = 2) +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.box = "horizontal",
+    legend.title = element_blank(),
+    legend.text = element_text(color = "black", size = 14),
+    axis.title.x = element_blank(),
+    axis.title.y = element_text(color = "black", size = 18),
+    axis.text.x = element_text(color = "black", size = 12),
+    axis.text.y = element_text(color = "black", size = 14),
+    strip.text.x = element_text(color = "black", family = "Syne", size = 14),
+    panel.grid.major.x = element_line(color = "grey70", linetype = 2),
+    panel.grid.major.y = element_line(color = "grey70", linetype = 2)
+  ) +
+  guides(
+    color = guide_legend(nrow = 1, override.aes = list(size = 3)),
+    shape = guide_legend(nrow = 1, override.aes = list(size = 3)),
+    fill  = guide_legend(nrow = 1, override.aes = list(size = 3))
+  )
+
+# View
+figure_1
+```
+
+## Figure 2. Linear and non-linear associations
+
+```{r fig.height=9, fig.width=14}
+# Z-Score Anemia in Children
+f1 <- plot_zscore_vs_hdi(data, yvar = z_anemia_child)
+
+# Z-Score Anemia in Pregnancy
+f2 <- plot_zscore_vs_hdi(data, yvar = z_anemia_gest)
+
+# Z-Score Anemia in Women of Reproductive Age
+f3 <- plot_zscore_vs_hdi(data, yvar = z_anemia_fertil)
+
+# Z-Score Low Birth Weight
+f4 <- plot_zscore_vs_hdi(data, yvar = z_bpn)
+
+# Z-Score Child Stunting
+f5 <- plot_zscore_vs_hdi(data, yvar = z_tallaedad, xlab = "Z-Score of Human Development Index")
+
+# Z-Score Overweight in Children
+f6 <- plot_zscore_vs_hdi(data, yvar = z_sobrepeso)
+
+# Merge plots
+figure_2 <- ggarrange(
+  f1, f2, f3, f4, f5, f6,
+  ncol = 3, nrow = 2,
+  common.legend = TRUE,
+  legend = "bottom",
+  align = "hv",
+  labels = c("A", "B", "C", "D", "E", "F"),
+  font.label = list(size = 18, face = "bold", family = "Lato")
+)
+
+# Common label Y
+figure_2 <- annotate_figure(
+  figure_2,
+  left = text_grob("Z-Score", rot = 90, size = 18, family = "Lato", hjust = 0.5)
+)
+
+# View
+figure_2
+```
+
+## Table 1. Changes in maternal and child nutrition indicators
+
+```{r}
+# Tibble data frame
+table_1 <- data |> 
+  dplyr::select(
+    pais, fechas,
+    anemia659, anemiafertil, anemiagest,
+    bajopesoalnacer, sobrepesoinfantil, retrasocrectallaedad
+  ) |> 
+  mutate(fechas = as.Date(fechas)) |> 
+  pivot_longer(
+    cols = -c(pais, fechas),
+    names_to = "variable",
+    values_to = "prevalencia"
+  ) |> 
+  drop_na(prevalencia) |> 
+  arrange(pais, variable, fechas) |> 
+  group_by(pais, variable) |> 
+  summarise(
+    inicial = first(prevalencia),
+    final = last(prevalencia),
+    diferencia = inicial - final,
+    .groups = "drop"
+  ) |> 
+  pivot_wider(
+    names_from = variable,
+    values_from = c(inicial, final, diferencia)
+  ) |> 
+  mutate(across(where(is.numeric), round, 1)) |>
+  dplyr::select(
+    pais, 
+    inicial_anemia659, final_anemia659, diferencia_anemia659,
+    inicial_anemiagest, final_anemiagest, diferencia_anemiagest,
+    inicial_anemiafertil, final_anemiafertil, diferencia_anemiafertil,
+    inicial_bajopesoalnacer, final_bajopesoalnacer, diferencia_bajopesoalnacer,
+    inicial_retrasocrectallaedad, final_retrasocrectallaedad, diferencia_retrasocrectallaedad,
+    inicial_sobrepesoinfantil, final_sobrepesoinfantil, diferencia_sobrepesoinfantil
+  )
+
+# Crear flextable a partir de tu tabla
+table_1_flextable <- flextable(table_1)
+
+# Añadir spanners (encabezados agrupados de 3 columnas)
+table_1_flextable <- set_header_labels(
+  table_1_flextable,
+  inicial_anemia659 = "Inicial",
+  final_anemia659 = "Final",
+  diferencia_anemia659 = "Δ",
+  inicial_anemiagest = "Inicial",
+  final_anemiagest = "Final",
+  diferencia_anemiagest = "Δ",
+  inicial_anemiafertil = "Inicial",
+  final_anemiafertil = "Final",
+  diferencia_anemiafertil = "Δ",
+  inicial_bajopesoalnacer = "Inicial",
+  final_bajopesoalnacer = "Final",
+  diferencia_bajopesoalnacer = "Δ",
+  inicial_retrasocrectallaedad = "Inicial",
+  final_retrasocrectallaedad = "Final",
+  diferencia_retrasocrectallaedad = "Δ",
+  inicial_sobrepesoinfantil = "Inicial",
+  final_sobrepesoinfantil = "Final",
+  diferencia_sobrepesoinfantil = "Δ"
+)
+
+# Definir los spanners
+table_1_flextable <- add_header_row(
+  table_1_flextable,
+  values = c(
+    "Pais",
+    "Anemia in Children",
+    "Anemia in Pregnancy",
+    "Anemia in Women of Reproductive Age",
+    "Low Birth Weight",
+    "Child Stunting",
+    "Overweight in Children"
+  ),
+  colwidths = c(
+    1, # pais
+    3, # inicial/final/diferencia anemia659
+    3, # anemiagest
+    3, # anemiafertil
+    3, # bajo peso al nacer
+    3, # retraso talla/edad
+    3  # sobrepeso infantil
+  )
+)
+
+# Ajustar estilo
+table_1_flextable <- autofit(table_1_flextable) |>
+  flextable::fontsize(part = "all", size = 10)
+
+# View
+table_1_flextable
+```
+
+## Table 2. Linear association between HDI and maternal and child nutrition indicators
+
+```{r}
+# Simple Linear Regression (SLR)
+model_anemia_child <- lm(z_anemia_child ~ z_hdi, data = data) |>
+  tbl_regression(
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    pvalue_fun = label_style_pvalue(digits = 1),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(z_hdi = "Anemia in Children")) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval")
+
+model_anemia_gest <- lm(z_anemia_gest ~ z_hdi, data = data) |>
+  tbl_regression(
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    pvalue_fun = label_style_pvalue(digits = 1),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(z_hdi = "Anemia in Pregnancy")) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval")
+
+model_anemia_fertil <- lm(z_anemia_fertil ~ z_hdi, data = data) |>
+  tbl_regression(
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    pvalue_fun = label_style_pvalue(digits = 1),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(z_hdi = "Anemia in Women of Reproductive Age")) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval")
+
+model_bpn <- lm(z_bpn ~ z_hdi, data = data) |>
+  tbl_regression(
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    pvalue_fun = label_style_pvalue(digits = 1),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(z_hdi = "Low Birth Weight")) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval")
+
+model_tallaedad <- lm(z_tallaedad ~ z_hdi, data = data) |>
+  tbl_regression(
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    pvalue_fun = label_style_pvalue(digits = 1),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(z_hdi = "Child Stunting")) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval")
+
+model_sobrepeso <- lm(z_sobrepeso ~ z_hdi, data = data) |>
+  tbl_regression(
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    pvalue_fun = label_style_pvalue(digits = 1),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(z_hdi = "Overweight in Children")) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval")
+
+# Merge
+table_2 <- tbl_stack(
+  list(
+    model_anemia_child, model_anemia_gest, model_anemia_fertil, model_bpn, 
+    model_tallaedad, model_sobrepeso)) |>
+  modify_header(label = "**Prevalence (Z-Score)**")
+
+# Convert gtsummary object to a flextable object
+table_2_flextable <- table_2 |>
+  gtsummary::as_flex_table() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  flextable::autofit()
+
+# View
+table_2
+```
+
+## Table 3. Non-linear models with `ns` between HDI and maternal and child nutrition indicators
+
+::: {style="text-align: justify"}
+En regresiones con errores estándar robustos agrupados por país, existen tres métodos comunes en **R** con ventajas diferenciadas según el número de clústeres. `vcovCL()` del paquete `sandwich` replica el comportamiento de `vce(cluster var)` de **Stata** y es eficiente cuando hay muchos clústeres (≥ 50), ya que asume que su número tiende a infinito. Sin embargo, no ajusta los grados de libertad, lo que puede subestimar la varianza y producir valores p sesgados en estudios con pocos clústeres. Para esos casos, `vcovCR(type = "CR2")` del paquete `clubSandwich` aplica una corrección tipo *Satterthwaite* que ajusta los grados de libertad para cada coeficiente, mejorando la precisión de los valores t y p. Esta corrección es especialmente útil en estudios multinivel o ecológicos con pocos países o clústeres (< 50), donde los métodos clásicos tienden a sobreestimar la precisión de los efectos. Por su parte, `feols()` del paquete `fixest` ofrece una solución rápida y flexible que permite especificar directamente el agrupamiento con `cluster = ~pais`, siendo compatible con múltiples clústeres y efectos fijos. Internamente utiliza estimadores tipo `vcovCL()`, pero puede integrarse con `vcovCR()` para obtener inferencias más confiables en contextos con baja granularidad.
+:::
+
+```{r}
+# Modelo con splines naturales
+ns_anemia_child <- lm(z_anemia_child ~ splines::ns(z_hdi, df = 2), data = data)
+ns_anemia_gest <- lm(z_anemia_gest ~ splines::ns(z_hdi, df = 2), data = data)
+ns_anemia_fertil <- lm(z_anemia_fertil ~ splines::ns(z_hdi, df = 2), data = data)
+ns_bpn <- lm(z_bpn ~ splines::ns(z_hdi, df = 2), data = data)
+ns_tallaedad <- lm(z_tallaedad ~ splines::ns(z_hdi, df = 2), data = data)
+ns_sobrepeso <- lm(z_sobrepeso ~ splines::ns(z_hdi, df = 2), data = data)
+
+# Errores estándar agrupados por país (cluster)
+vcov_cluster_ns_anemia_child <- vcovCL(ns_anemia_child, cluster = ~pais)
+# vcov_cluster_ns_anemia_child <- vcovCR(ns_anemia_child, cluster = datos$pais, type = "CR2")
+vcov_cluster_ns_anemia_gest <- vcovCL(ns_anemia_gest, cluster = ~pais)
+vcov_cluster_ns_anemia_fertil <- vcovCL(ns_anemia_fertil, cluster = ~pais)
+vcov_cluster_ns_bpn <- vcovCL(ns_bpn, cluster = ~pais)
+vcov_cluster_ns_tallaedad <- vcovCL(ns_tallaedad, cluster = ~pais)
+vcov_cluster_ns_sobrepeso <- vcovCL(ns_sobrepeso, cluster = ~pais)
+
+# Test con errores robustos agrupados
+# lmtest::coeftest(ns_anemia_child, vcov = vcov_cluster_ns_anemia_child)
+# coef_test(ns_anemia_child, vcov = vcov_cluster_ns_anemia_child, test = "Satterthwaite")
+
+# modelo <- fixest::feols(z_anemia_child ~ ns(z_hdi, df = 2), data = data, cluster = ~pais)
+# summary(modelo)
+
+model_ns_anemia_child <- ns_anemia_child |>
+  tbl_regression(
+    vcov = vcov_cluster_ns_anemia_child,
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    estimate_fun = ~ style_number(.x, digits = 2),
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    label = list(
+      `ns(z_hdi, df = 2)1` = "Spline HDI 1", 
+      `ns(z_hdi, df = 2)2` = "Spline HDI 2")
+  ) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval") 
+
+model_ns_anemia_gest <- ns_anemia_gest |>
+  tbl_regression(
+    vcov = vcov_cluster_ns_anemia_gest,
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    estimate_fun = ~ style_number(.x, digits = 2),
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    label = list(
+      `ns(z_hdi, df = 2)1` = "Spline HDI 1", 
+      `ns(z_hdi, df = 2)2` = "Spline HDI 2")
+  ) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval") 
+
+model_ns_anemia_fertil <- ns_anemia_fertil |>
+  tbl_regression(
+    vcov = vcov_cluster_ns_anemia_fertil,
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    estimate_fun = ~ style_number(.x, digits = 2),
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    label = list(
+      `ns(z_hdi, df = 2)1` = "Spline HDI 1", 
+      `ns(z_hdi, df = 2)2` = "Spline HDI 2")
+  ) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval") 
+
+model_ns_bpn <- ns_bpn |>
+  tbl_regression(
+    vcov = vcov_cluster_ns_bpn,
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    estimate_fun = ~ style_number(.x, digits = 2),
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    label = list(
+      `ns(z_hdi, df = 2)1` = "Spline HDI 1", 
+      `ns(z_hdi, df = 2)2` = "Spline HDI 2")
+  ) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval") 
+
+model_ns_tallaedad <- ns_tallaedad |>
+  tbl_regression(
+    vcov = vcov_cluster_ns_tallaedad,
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    estimate_fun = ~ style_number(.x, digits = 2),
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    label = list(
+      `ns(z_hdi, df = 2)1` = "Spline HDI 1", 
+      `ns(z_hdi, df = 2)2` = "Spline HDI 2")
+  ) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval")
+
+model_ns_sobrepeso <- ns_sobrepeso |>
+  tbl_regression(
+    vcov = vcov_cluster_ns_sobrepeso,
+    conf.int = TRUE,
+    conf.level = 0.95,
+    tidy_fun = broom.helpers::tidy_parameters,
+    estimate_fun = ~ style_number(.x, digits = 2),
+    pvalue_fun = ~ style_pvalue(.x, digits = 2),
+    label = list(
+      `ns(z_hdi, df = 2)1` = "Spline HDI 1", 
+      `ns(z_hdi, df = 2)2` = "Spline HDI 2")
+  ) |>
+  remove_abbreviation() |>
+  modify_abbreviation("95% CI; 95% Confidence Interval") 
+
+# Merge
+table_3 <- tbl_merge(
+  tbls = list(
+    model_ns_anemia_child,
+    model_ns_anemia_gest,
+    model_ns_anemia_fertil,
+    model_ns_bpn,
+    model_ns_tallaedad,
+    model_ns_sobrepeso
+  ),
+  tab_spanner = c(
+    "**Anemia in Children**",
+    "**Anemia in Pregnancy**",
+    "**Anemia in Women of Reproductive Age**",
+    "**Low Birth Weight**",
+    "**Child Stunting**",
+    "**Overweight in Children**"
+  )
+) |>
+  modify_caption("**Prevalence (Z-Score) Models with Natural Splines**") |>
+  modify_abbreviation("95% CI; 95% Confidence Interval")
+
+# Convert gtsummary object to a flextable object
+table_3_flextable <- table_3 |>
+  gtsummary::as_flex_table() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  flextable::autofit()
+
+# View
+table_3
+```
+
+# Save outputs
+
+## Figures
+
+```{r}
+ggsave(
+  plot = figure_1, 
+  filename = here("outputs", "figura_1.jpg"), 
+  width = 14, 
+  height = 8, 
+  units = "in",
+  dpi = 300)
+
+ggsave(
+  plot = figure_1, 
+  filename = here("outputs", "figura_1.tiff"), 
+  width = 14, 
+  height = 8, 
+  units = "in",
+  dpi = 300)
+
+ggsave(
+  plot = figure_2, 
+  filename = here("outputs", "figura_2.jpg"), 
+  width = 14, 
+  height = 9, 
+  units = "in",
+  dpi = 300)
+
+ggsave(
+  plot = figure_2, 
+  filename = here("outputs", "figura_2.tiff"), 
+  width = 14, 
+  height = 9, 
+  units = "in",
+  dpi = 300)
+```
+
+## Tables
+
+```{r}
+save_as_docx(
+  "Table 1" = table_1_flextable,
+  "Table 2" = table_2_flextable,
+  "Table 3" = table_3_flextable,
+  path = here("outputs", "Tables.docx")
+)
+```
