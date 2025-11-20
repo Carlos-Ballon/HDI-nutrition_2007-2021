@@ -1,5 +1,5 @@
 ---
-title: "IDH_LATAM"
+title: "HDI and Maternal-Child Nutrition Indicators in South America (2007–2021): An Ecological Study"
 author: "Carlos Ballon-Salcedo"
 date: "`r Sys.Date()`"
 format: docx
