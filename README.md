@@ -9,10 +9,10 @@ Despite economic development progress in South America, malnutrition, anemia, an
   - Nutrition indicators: [World Bank Open Data](https://databank.worldbank.org)
   - HDI: [UNDP Human Development Data Center](https://hdr.undp.org/data-center)
 - **Indicators analyzed**:
-  - Anemia in children (6–59 months), pregnant women, and women aged 15–49
+  - Anemia in children (6–59 months), pregnant women, and women of reproductive age (15-49 years old)
   - Low birthweight
   - Stunting (height-for-age)
-  - Childhood overweight
+  - Overweight in Children
 - **Statistical approach**:
   - Variables standardized using z-scores
   - Associations evaluated using:
@@ -20,24 +20,14 @@ Despite economic development progress in South America, malnutrition, anemia, an
     - Natural cubic splines (2 degrees of freedom) for non-linear patterns
   - All analyses conducted in RStudio
 
-## 📈 Key Findings
-- Significant inverse correlations between HDI and:
-  - Anemia in children (ρ = –0.73), pregnant women (ρ = –0.71), and women of reproductive age (ρ = –0.89)
-  - Childhood stunting (ρ = –0.56)
-  - Low birthweight (ρ = –0.32, p = 0.002)
-- Positive correlation between HDI and childhood overweight (ρ = 0.42)
-
-## 📂 Repository Structure
-HDI-nutrition_2007-2021/ ├── data/ # Raw and cleaned datasets ├── report_sources/ # Quarto document and figures │ └── IDH_LATAM.qmd # Main analysis and visualizations ├── R/ # Custom plotting and analysis functions ├── LICENSE # MIT License ├── README.md # Project overview └── .gitignore # Files excluded from version control
-
 ## 📄 Reproducibility
 Clone the repository:
    ```bash
    git clone https://github.com/Carlos-Ballon/HDI-nutrition_2007-2021.git
    ```
 
-📜 License
+## 📜 License
 This project is licensed under the MIT License, allowing reuse with attribution.
 
-🔍 Keywords
+## 🔍 Keywords
 Development Indicators · Child Nutrition · Maternal Nutrition · Anemia · Overweight · South America
