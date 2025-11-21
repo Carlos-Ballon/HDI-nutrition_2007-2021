@@ -6,6 +6,8 @@ format: docx
 editor: source
 message: false
 warning: false
+bibliography: grateful-refs.bib
+csl: vancouver.csl
 ---
 
 # Load packages
@@ -23,17 +25,26 @@ pacman::p_load(
   officer,
   lmtest,
   sandwich,
+  splines,
   clubSandwich,
   modelsummary,
   extrafont,
   labelled,
   janitor,
   epiDisplay,
-  Hmisc
+  Hmisc,
+  grateful
 )
 
 # Scripts
 source(here::here("scripts", "plot_zscore_vs_hdi.R"))
+
+# Citations
+grateful::cite_packages(
+  output = "file",
+  out.format = "docx",
+  out.dir = ".",
+  citation.style = "vancouver")
 ```
 
 # Import data
@@ -364,8 +375,25 @@ table_1_flextable
 
 ```{r}
 # Simple Linear Regression (SLR)
-model_anemia_child <- lm(z_anemia_child ~ z_hdi, data = data) |>
+lm_anemia_child <- lm(z_anemia_child ~ z_hdi, data = data)
+lm_anemia_gest <- lm(z_anemia_gest ~ z_hdi, data = data)
+lm_anemia_fertil <- lm(z_anemia_fertil ~ z_hdi, data = data)
+lm_bpn <- lm(z_bpn ~ z_hdi, data = data)
+lm_tallaedad <- lm(z_tallaedad ~ z_hdi, data = data)
+lm_sobrepeso <- lm(z_sobrepeso ~ z_hdi, data = data)
+
+# Errores estándar agrupados por país (cluster)
+vcov_cluster_lm_anemia_child <- vcovCR(lm_anemia_child, cluster = data$pais, type = "CR2")
+vcov_cluster_lm_anemia_gest <- vcovCR(lm_anemia_gest, cluster = data$pais, type = "CR2")
+vcov_cluster_lm_anemia_fertil <- vcovCR(lm_anemia_fertil, cluster = data$pais, type = "CR2")
+vcov_cluster_lm_bpn <- vcovCR(lm_bpn, cluster = data$pais, type = "CR2")
+vcov_cluster_lm_tallaedad <- vcovCR(lm_tallaedad, cluster = data$pais, type = "CR2")
+vcov_cluster_lm_sobrepeso <- vcovCR(lm_sobrepeso, cluster = data$pais, type = "CR2")
+
+# Simple Linear Regression (SLR)
+model_anemia_child <- lm_anemia_child |>
   tbl_regression(
+    vcov = vcov_cluster_lm_anemia_child,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -375,8 +403,9 @@ model_anemia_child <- lm(z_anemia_child ~ z_hdi, data = data) |>
   remove_abbreviation() |>
   modify_abbreviation("95% CI; 95% Confidence Interval")
 
-model_anemia_gest <- lm(z_anemia_gest ~ z_hdi, data = data) |>
+model_anemia_gest <- lm_anemia_gest |>
   tbl_regression(
+    vcov = vcov_cluster_lm_anemia_gest,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -386,8 +415,9 @@ model_anemia_gest <- lm(z_anemia_gest ~ z_hdi, data = data) |>
   remove_abbreviation() |>
   modify_abbreviation("95% CI; 95% Confidence Interval")
 
-model_anemia_fertil <- lm(z_anemia_fertil ~ z_hdi, data = data) |>
+model_anemia_fertil <- lm_anemia_fertil |>
   tbl_regression(
+    vcov = vcov_cluster_lm_anemia_fertil,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -397,8 +427,9 @@ model_anemia_fertil <- lm(z_anemia_fertil ~ z_hdi, data = data) |>
   remove_abbreviation() |>
   modify_abbreviation("95% CI; 95% Confidence Interval")
 
-model_bpn <- lm(z_bpn ~ z_hdi, data = data) |>
+model_bpn <- lm_bpn |>
   tbl_regression(
+    vcov = vcov_cluster_lm_bpn,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -408,8 +439,9 @@ model_bpn <- lm(z_bpn ~ z_hdi, data = data) |>
   remove_abbreviation() |>
   modify_abbreviation("95% CI; 95% Confidence Interval")
 
-model_tallaedad <- lm(z_tallaedad ~ z_hdi, data = data) |>
+model_tallaedad <- lm_tallaedad |>
   tbl_regression(
+    vcov = vcov_cluster_lm_tallaedad,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -419,8 +451,9 @@ model_tallaedad <- lm(z_tallaedad ~ z_hdi, data = data) |>
   remove_abbreviation() |>
   modify_abbreviation("95% CI; 95% Confidence Interval")
 
-model_sobrepeso <- lm(z_sobrepeso ~ z_hdi, data = data) |>
+model_sobrepeso <- lm_sobrepeso |>
   tbl_regression(
+    vcov = vcov_cluster_lm_sobrepeso,
     conf.int = TRUE,
     conf.level = 0.95,
     tidy_fun = broom.helpers::tidy_parameters,
@@ -463,13 +496,13 @@ ns_tallaedad <- lm(z_tallaedad ~ splines::ns(z_hdi, df = 2), data = data)
 ns_sobrepeso <- lm(z_sobrepeso ~ splines::ns(z_hdi, df = 2), data = data)
 
 # Errores estándar agrupados por país (cluster)
-vcov_cluster_ns_anemia_child <- vcovCL(ns_anemia_child, cluster = ~pais)
-# vcov_cluster_ns_anemia_child <- vcovCR(ns_anemia_child, cluster = datos$pais, type = "CR2")
-vcov_cluster_ns_anemia_gest <- vcovCL(ns_anemia_gest, cluster = ~pais)
-vcov_cluster_ns_anemia_fertil <- vcovCL(ns_anemia_fertil, cluster = ~pais)
-vcov_cluster_ns_bpn <- vcovCL(ns_bpn, cluster = ~pais)
-vcov_cluster_ns_tallaedad <- vcovCL(ns_tallaedad, cluster = ~pais)
-vcov_cluster_ns_sobrepeso <- vcovCL(ns_sobrepeso, cluster = ~pais)
+# vcov_cluster_ns_anemia_child <- vcovCL(ns_anemia_child, cluster = ~pais)
+vcov_cluster_ns_anemia_child <- vcovCR(ns_anemia_child, cluster = data$pais, type = "CR2")
+vcov_cluster_ns_anemia_gest <- vcovCR(ns_anemia_gest, cluster = data$pais, type = "CR2")
+vcov_cluster_ns_anemia_fertil <- vcovCR(ns_anemia_fertil, cluster = data$pais, type = "CR2")
+vcov_cluster_ns_bpn <- vcovCR(ns_bpn, cluster = data$pais, type = "CR2")
+vcov_cluster_ns_tallaedad <- vcovCR(ns_tallaedad, cluster = data$pais, type = "CR2")
+vcov_cluster_ns_sobrepeso <- vcovCR(ns_sobrepeso, cluster = data$pais, type = "CR2")
 
 # Test con errores robustos agrupados
 # lmtest::coeftest(ns_anemia_child, vcov = vcov_cluster_ns_anemia_child)
