@@ -20,4 +20,4 @@ report_sources/*.Rmd
 
 # Ignore all Excel and Word files
 *.xlsx
-# *.docx
+report_sources/*.docx
