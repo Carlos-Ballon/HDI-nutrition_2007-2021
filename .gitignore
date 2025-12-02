@@ -21,6 +21,7 @@ report_sources/*.Rmd
 # Ignore all Excel and Word files
 Journals to submit_idh.xlsx
 report_sources/*.docx
-*/**/*.docx
+/*.docx
+!*/**/*.docx
 
 
