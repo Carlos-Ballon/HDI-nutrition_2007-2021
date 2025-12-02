@@ -20,8 +20,12 @@ report_sources/*.Rmd
 
 # Ignore all Excel and Word files
 Journals to submit_idh.xlsx
-report_sources/*.docx
+
+# Ignora .docx en la raíz
 /*.docx
-!*/**/*.docx
+
+# Ignora .docx en report_sources
+/report_sources/*.docx
+
 
 
